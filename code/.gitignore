@@ -1,0 +1,6 @@
+.env
+dist/
+dashboard-dist/
+node_modules/
+npm-debug.log*
+run-output/

@@ -1,0 +1,44 @@
+{
+  "name": "code",
+  "version": "1.0.0",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "npm run build:server && npm run build:dashboard",
+    "build:server": "tsc",
+    "build:dashboard": "vite build --config dashboard-ui/vite.config.ts",
+    "typecheck": "npm run typecheck:server && npm run typecheck:dashboard",
+    "typecheck:server": "tsc --noEmit",
+    "typecheck:dashboard": "tsc --noEmit -p dashboard-ui/tsconfig.json",
+    "test": "npm run build && node dist/test_runner.js",
+    "test:offline": "npm run build && node dist/edge_case_test.js",
+    "validate:output": "npm run build && node dist/validate_output.js",
+    "start": "npm run build && node dist/start.js",
+    "start:headless": "npm run build && node dist/main.js && node dist/validate_output.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.103",
+    "@ai-sdk/openai": "^3.0.90",
+    "@ui5/webcomponents": "^2.25.0",
+    "@ui5/webcomponents-fiori": "^2.25.0",
+    "@ui5/webcomponents-react": "^2.25.0",
+    "ai": "^6.0.240",
+    "csv-parser": "^3.2.1",
+    "dotenv": "^17.4.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2",
+    "vite": "^6.4.3"
+  }
+}
