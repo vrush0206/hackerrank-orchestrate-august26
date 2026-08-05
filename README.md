@@ -12,6 +12,50 @@ WhatsApp is noisy. A user can receive family chats, society notices, school upda
 
 Read [`problem_statement.md`](./problem_statement.md) for the full task spec, input/output schema, allowed values, and submission format.
 
+## Implemented Solution
+
+The `agent/message-router-dashboard` branch contains a production-oriented TypeScript implementation built with the Vercel AI SDK, Gemini, Zod, and UI5 Web Components for React.
+
+### Routing pipeline
+
+- Streams `dataset/messages.csv` instead of loading the full message file into memory.
+- Indexes users, preferences, groups, business metadata, media mappings, notification summaries, and interaction history through typed lookup maps.
+- Retrieves the five most relevant historical messages using a weighted score: 45% lexical similarity, 30% recency, and 25% interaction strength.
+- Sends enriched messages to Gemini in configurable batches, with image assets encoded as multimodal content parts.
+- Validates every decision with a strict Zod schema before progressively writing output.
+- Restricts actions to `notify`, `digest`, or `mute` and message categories to the challenge's exact allowed values.
+
+### Reliability and validation
+
+- Applies configurable requests-per-minute pacing and stops after two consecutive request failures by default.
+- Preserves runtime errors in dashboard history and a local JSONL log.
+- Writes production results to `dataset/output.pending.csv` and promotes them to `dataset/output.csv` only after a complete successful run.
+- Checks row counts, missing and duplicate message IDs, schema compliance, and zero-confidence decisions.
+- Archives completed runs under the gitignored `code/run-output/` directory.
+
+### UI5 monitoring dashboard
+
+Running `npm start` launches a SAP UI5 React dashboard at `http://localhost:3000`. It provides:
+
+- **Data Overview** for source-data distributions and indexed-record statistics.
+- **Run Control** for starting a run and monitoring progress, decisions, model configuration, and persistent failures.
+- **Implementation Workflow** for explaining context aggregation, ranked historical retrieval, batching, multimodal enrichment, and output validation.
+
+The interface uses UI5 `ShellBar`, `TabContainer`, `Card`, `ObjectStatus`, `ProgressIndicator`, `MessageStrip`, `List`, and icon components with SAP theme tokens.
+
+### Run the implementation
+
+```powershell
+cd code
+npm ci
+Copy-Item .env.example .env
+# Set GEMINI_API_KEY in .env, then:
+npm run test:offline
+npm start
+```
+
+See [`code/README.md`](./code/README.md) for model, batching, rate-limit, smoke-test, and headless-run configuration.
+
 ---
 
 ## Repository Layout
