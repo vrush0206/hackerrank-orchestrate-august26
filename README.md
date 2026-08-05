@@ -1,174 +1,153 @@
-# HackerRank Orchestrate
+# Message Notification Router
 
-Starter repository for the **HackerRank Orchestrate** 24-hour hackathon.
+A production-oriented TypeScript orchestration service that classifies incoming messages with Gemini and exposes run progress through a SAP UI5 React dashboard.
 
-## Message Notification Router
+## What Was Built
 
-Build an AI-powered system for WhatsApp that decides which messages deserve immediate attention, which should wait, and which should be muted.
+- A typed relational data aggregator for user preferences, groups, businesses, media mappings, notification summaries, and historical interactions.
+- Ranked historical-context retrieval using lexical similarity, recency, and interaction strength.
+- Batched, rate-limited Gemini requests through the Vercel AI SDK.
+- Multimodal image support using base64 content parts.
+- Strict Zod validation for every routing decision.
+- Progressive CSV output with safe promotion only after a successful run.
+- Persistent error history, output validation, and local run archives.
+- A responsive monitoring dashboard built with UI5 Web Components for React.
 
-The system must reason over multimodal messages, including text messages, image posters/screenshots, and voice notes.
+## Architecture
 
-WhatsApp is noisy. A user can receive family chats, society notices, school updates, co-worker messages, business account promotions, image posters, voice notes, and scams in the same message stream. Treating every message the same creates two bad outcomes: important messages get missed, and unwanted or risky messages interrupt the user.
+```text
+dataset CSV files
+       |
+       v
+DataAggregator indexes relational context
+       |
+       v
+top-5 historical retrieval + preferences + channel metadata
+       |
+       v
+batched multimodal Gemini request
+       |
+       v
+Zod validation and message-ID correlation
+       |
+       v
+output.pending.csv -> validation -> output.csv
+```
 
-Read [`problem_statement.md`](./problem_statement.md) for the full task spec, input/output schema, allowed values, and submission format.
+Historical candidates are ranked with:
 
-## Implemented Solution
+```text
+score = 0.45 * lexical similarity
+      + 0.30 * recency
+      + 0.25 * interaction strength
+```
 
-The `agent/message-router-dashboard` branch contains a production-oriented TypeScript implementation built with the Vercel AI SDK, Gemini, Zod, and UI5 Web Components for React.
+Only the five highest-scoring channel-specific records are included in the LLM context to reduce prompt size and latency.
 
-### Routing pipeline
+## UI5 Dashboard
 
-- Streams `dataset/messages.csv` instead of loading the full message file into memory.
-- Indexes users, preferences, groups, business metadata, media mappings, notification summaries, and interaction history through typed lookup maps.
-- Retrieves the five most relevant historical messages using a weighted score: 45% lexical similarity, 30% recency, and 25% interaction strength.
-- Sends enriched messages to Gemini in configurable batches, with image assets encoded as multimodal content parts.
-- Validates every decision with a strict Zod schema before progressively writing output.
-- Restricts actions to `notify`, `digest`, or `mute` and message categories to the challenge's exact allowed values.
+Running the application starts a dashboard at `http://localhost:3000` with three areas:
 
-### Reliability and validation
-
-- Applies configurable requests-per-minute pacing and stops after two consecutive request failures by default.
-- Preserves runtime errors in dashboard history and a local JSONL log.
-- Writes production results to `dataset/output.pending.csv` and promotes them to `dataset/output.csv` only after a complete successful run.
-- Checks row counts, missing and duplicate message IDs, schema compliance, and zero-confidence decisions.
-- Archives completed runs under the gitignored `code/run-output/` directory.
-
-### UI5 monitoring dashboard
-
-Running `npm start` launches a SAP UI5 React dashboard at `http://localhost:3000`. It provides:
-
-- **Data Overview** for source-data distributions and indexed-record statistics.
-- **Run Control** for starting a run and monitoring progress, decisions, model configuration, and persistent failures.
-- **Implementation Workflow** for explaining context aggregation, ranked historical retrieval, batching, multimodal enrichment, and output validation.
+- **Data Overview** displays indexed-record counts and input distributions without calling the model.
+- **Run Control** starts a guarded run and shows progress, active model, RPM limit, decisions, confidence, and retained errors.
+- **Implementation Workflow** explains aggregation, retrieval, enrichment, batching, and validation.
 
 The interface uses UI5 `ShellBar`, `TabContainer`, `Card`, `ObjectStatus`, `ProgressIndicator`, `MessageStrip`, `List`, and icon components with SAP theme tokens.
 
-### Run the implementation
+## Project Structure
+
+```text
+code/
+|-- dashboard-ui/          # React and UI5 dashboard
+|-- src/
+|   |-- aggregator.ts      # Typed CSV indexes and context lookup
+|   |-- dashboard.ts       # Dashboard server and status API
+|   |-- edge_case_test.ts  # Offline regression checks
+|   |-- main.ts            # Production orchestration pipeline
+|   |-- schema.ts          # Strict Zod decision schemas
+|   |-- start.ts           # Dashboard-first application entry point
+|   |-- test_runner.ts     # Lightweight model verification
+|   |-- types.ts           # Dataset and routing types
+|   `-- validate_output.ts # Output validation and archiving
+|-- .env.example
+|-- package.json
+`-- tsconfig.json
+```
+
+## Setup
+
+Requirements:
+
+- Node.js 20 or newer
+- A Gemini API key
 
 ```powershell
 cd code
 npm ci
 Copy-Item .env.example .env
-# Set GEMINI_API_KEY in .env, then:
+```
+
+Add the key to `code/.env`:
+
+```dotenv
+GEMINI_API_KEY=your-key
+```
+
+The `.env` file, build artifacts, dependencies, error logs, and run archives are excluded from Git.
+
+## Configuration
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `GEMINI_API_KEY` | Gemini authentication | Required |
+| `GEMINI_MODEL` | Model override | `gemini-3.6-flash` |
+| `MESSAGE_BATCH_SIZE` | Messages per model request | `10` |
+| `MESSAGE_LIMIT` | Maximum messages for a smoke run; `0` means all | `0` |
+| `GEMINI_MIN_INTERVAL_MS` | Minimum delay between requests | `15000` |
+| `GEMINI_MAX_REQUEST_FAILURES` | Consecutive failures before stopping | `2` |
+
+For a small real-data test, set `MESSAGE_LIMIT=10` before starting the run.
+
+## Commands
+
+Run compilation checks:
+
+```powershell
+npm run typecheck
+```
+
+Run offline edge-case tests without calling Gemini:
+
+```powershell
 npm run test:offline
+```
+
+Start the dashboard without immediately calling Gemini:
+
+```powershell
 npm start
 ```
 
-See [`code/README.md`](./code/README.md) for model, batching, rate-limit, smoke-test, and headless-run configuration.
+Open `http://localhost:3000` and initiate the run from **Run Control**.
 
----
+Run without the dashboard:
 
-## Repository Layout
-
-```text
-.
-├── AGENTS.md                         # Rules for AI coding tools + transcript logging
-├── problem_statement.md              # Full challenge statement
-├── README.md                         # You are here
-└── dataset/
-    ├── messages.csv                  # Messages to route
-    ├── output.csv                    # Blank submission template
-    ├── sample_messages.csv           # Solved examples
-    ├── users.csv                     # User notification behavior
-    ├── groups.csv                    # Group metadata
-    ├── group_members.csv             # User-group relationships
-    ├── business_accounts.csv         # Business sender metadata
-    ├── user_business_history.csv     # User-business history
-    ├── message_history.csv           # Historical messages
-    ├── message_events.csv            # User reactions to historical messages
-    ├── images.csv                    # Image IDs and media file paths
-    ├── voice_notes.csv               # Voice note IDs and media file paths
-    ├── daily_notification_summary.csv
-    └── media/
-        ├── images/
-        └── audio/
+```powershell
+npm run start:headless
 ```
 
----
+Validate and archive an existing output without calling the model:
 
-## What You Need to Build
+```powershell
+npm run validate:output
+```
 
-For every row in `dataset/messages.csv`, produce one row in `output.csv` with:
+## Output Safety
 
-| Column | Meaning |
-|---|---|
-| `message_id` | Incoming message ID |
-| `action` | One of `notify`, `digest`, or `mute` |
-| `message_type` | Best-fit message category |
-| `reason` | Short human-readable explanation |
-| `confidence` | Number from `0` to `1` |
-| `evidence_message_ids` | Historical message IDs used as evidence; write `none` if there is no useful evidence |
+- Results are written progressively to `dataset/output.pending.csv`.
+- The pending file is promoted to `dataset/output.csv` only after complete processing.
+- Validation checks row counts, ID coverage, duplicate IDs, allowed schema values, and zero-confidence decisions.
+- Failed requests are retained in the dashboard and written to a JSONL error log.
+- Completed runs are archived under the Git-ignored `code/run-output/` directory.
 
-Your system should make personalized decisions using the provided message, user, group, business, media, and historical interaction data.
-For image and voice-note messages, `images.csv` and `voice_notes.csv` only provide file paths; your system should inspect the media files themselves.
-
----
-
-## Suggested Workflow
-
-1. Inspect `dataset/sample_messages.csv` to understand the expected output format.
-2. Load `dataset/messages.csv` and all relevant context files.
-3. Build your routing system using any approach: LLMs, retrieval, rules, classifiers, agents, or hybrids.
-4. Write predictions to `output.csv`.
-5. Evaluate your approach on the solved sample rows before submitting.
-
-You may use any language or runtime. Python, JavaScript, and TypeScript are all reasonable choices.
-
----
-
-## Requirements
-
-Your solution must:
-
-- be runnable from the terminal
-- read the provided files from `dataset/`
-- produce a valid `output.csv`
-- include one prediction for every `message_id` in `dataset/messages.csv`
-- not use organizer-only files or hardcoded labels
-
-If you use API keys or secrets, read them from environment variables. Never hardcode secrets in the repo.
-
----
-
-## Evaluation
-
-Your `output.csv` will be compared against hidden ground-truth labels.
-
-The scoring will consider:
-
-- correctness of `action`
-- correctness of `message_type`
-- usefulness and consistency of `reason`
-- whether `evidence_message_ids` point to relevant historical messages
-- reasonable confidence calibration
-
-Strong systems will combine retrieval, structured metadata, behavioral history, safety checks, OCR/ASR handling, and contextual reasoning.
-
----
-
-## Chat Transcript Logging
-
-This repo includes an [`AGENTS.md`](./AGENTS.md) file for AI coding tools. It asks compatible tools to append conversation summaries to:
-
-| Platform | Path |
-|---|---|
-| macOS / Linux | `$HOME/hackerrank_orchestrate_august26/log.txt` |
-| Windows | `%USERPROFILE%\hackerrank_orchestrate_august26\log.txt` |
-
-Upload this log as your chat transcript at submission time. Do not paste secrets into the chat.
-
----
-
-## Submission
-
-Submit the following files as instructed by HackerRank:
-
-1. **Code zip**: full runnable solution, prompts/configs, README, and any evaluation files.
-2. **Predictions CSV**: final `output.csv` for all rows in `dataset/messages.csv`.
-3. **Chat transcript**: the `log.txt` described above.
-
-Before submitting, confirm:
-
-- `output.csv` has one row per row in `dataset/messages.csv`.
-- `output.csv` has the exact required columns in the exact required order.
-- Your runnable code and setup instructions are included in `code.zip`.
+Generated output files are intentionally kept separate from source commits unless they are explicitly selected for publication.
